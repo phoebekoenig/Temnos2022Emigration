@@ -1,0 +1,138 @@
+---
+title: "Temnos2022Emigration"
+author: "Phoebe Koenig"
+date: "2023-03-10"
+output: html_document
+---
+### Required Packages
+
+```{r}
+library(lme4)
+library(nlme)
+library(car)
+library(ggplot2)
+library(plyr)
+library(dplyr)
+library(MASS)
+library(factoextra)
+library(performance)
+library(emmeans)
+
+```
+
+### **Data**
+
+```{r}
+
+
+summarydata<-read.csv("~/Temnos2022Emigration/summaryraiddata2022.csv")
+```
+
+# Variables
+
+### List:
+
+Here are the variables in the dataset:
+
+**Collected.Date**: Date colony was collected.
+
+**Divided.Date:** Date colony was divided evenly into two matched pairs.
+
+**Pair.Group:** Number identifier for pair group. Each colony collected in the field was divided between 2 nests as a matched pair. Nests with the same Pair group are genetically related (came from the same colony) but one nest in each pair experienced a raiding trial, and one did not.
+
+**Nest:** Number identifier for nest.
+
+**Collection.Site:** Site at which nest containing ant was collected.
+
+**Worker.Count:** Number of workers in collected colony before split. Should be the same for both nests in a pair group.
+
+**Pupae.Count:** Number of pupae in collected colony before split. Should be the same for both nests in a pair group.
+
+**Larvae.Count:** Number of larvae in collected colony before split. Should be the same for both nests in a pair group.
+
+**Queens.Dealate:** Number of dealate queens in collected colony before split. Should be the same for both nests in a pair group.
+
+**Queens.Alate:** Number of alate queens in collected colony before split. Should be the same for both nests in a pair group.
+
+**Males.Alate:** Number of males in collected colony before split. Should be the same for both nests in a pair group.
+
+**Eggs:** Number of eggs in collected colony before split. Should be the same for both nests in a pair group.
+
+**Raided:** Whether or not the nest was raided. Y means yes, N means no.
+
+**Pair.Raid.Date.Start:** Date on which Raiding/nonraided trial began
+
+**Pair.Raid.Date.End:** Date on which Raiding/nonraided trial ended
+
+**Pair.Frozen.Date:** Date on which ants in pair group were frozen
+
+**Raid.Payoff.Pupae:** Net increase in pupae in parasite nest from raiding trial 
+
+**Raid.Payoff.Larvae:** Net increase in larvae in parasite nest from raiding trial 
+
+**Nest.Switch:** Y means ants moved into empty nest. N means they remained in original nest. 
+
+**Notes:** Notes on witnessed raid event and success
+
+**Final.Worker.Count** : The number of workers in the nest on the day it was censused/frozen.
+
+**Final.Queen.Count.Dealate** : The number of queens without wings in the nest on the day it was censused/frozen.
+
+**Final.Pupae.Count** : The number of pupae in the nest on the day it was censused/frozen.
+
+**Final.Larvae.Count** : The number of larvae in the nest on the day it was censused/frozen.
+
+**Final.Egg.Count** : The approximate number of eggs in the nest on the day it was censused/frozen.
+
+**Final.Queen.Count.Alate** : The number of winged queens in the nest on the day it was censused/frozen.
+
+**Final.Male.Count**: The number of males in the nest on the day it was censused/frozen.
+
+
+
+```{r}
+
+summarydata$Collected.Date <- as.Date(as.character(summarydata$Collected.Date), format = "%m/ %d/%y")
+summarydata$Divided.Date <- as.Date(as.character(summarydata$Divided.Date), format = "%m/ %d/%y")
+
+
+```
+
+
+
+# Nest Switch
+
+```{r}
+
+nestswitch<-subset(summarydata,Nest.Switch!="NA")
+nestswitch<-subset(nestswitch,Nest!="31")
+nestswitch$Pair.Raid.Date.Start[1]="26-Jul-22"
+#Remove Nest 31 because the parasite had no net increase in brood and i did not see them raiding
+nestswitch$Pair.Raid.Date.End <- as.Date(as.character(nestswitch$Pair.Raid.Date.End), format = "%d-%b-%y")
+nestswitch$Pair.Raid.Date.Start <- as.Date(as.character(nestswitch$Pair.Raid.Date.Start), format = "%d-%b-%y")
+
+
+#Dataset is successfully loaded but for some random reason missing this date so i'm adding manually
+nestswitch$Raid.Duration<-nestswitch$Pair.Raid.Date.End-nestswitch$Pair.Raid.Date.Start
+#Had to make a new column that had nest switch in a logical way
+nestswitch$Raid.Payoff.Total<-nestswitch$Raid.Payoff.Pupae+nestswitch$Raid.Payoff.Larvae
+nestswitch$Final.Pupae.Adult.Ratio<-nestswitch$Final.Pupae.Count/nestswitch$Final.Worker.Count
+
+nestswitch$Proportion.Stolen<-nestswitch$Raid.Payoff.Total/(nestswitch$Final.Larvae.Count+nestswitch$Final.Pupae.Count)
+for (p in 1:nrow(nestswitch)) {if (nestswitch$Raided[p]=="N") {nestswitch$Proportion.Stolen[p]=0}}
+
+#Are raided ants significantly more likely to move than unraided ants?
+nestmodel<-glmer(Logical.NS~Raided+(1|Pair.Group), data=nestswitch, family="binomial")
+summary(nestmodel)
+Anova(nestmodel,type="III")
+
+
+#Is the proportion of ants that moved in the raided group significantly different than what we would expect by chance?
+prop.test(12,14,p=0.5)
+#The proportion of colonies where the majority moved was .857 CI=.56-.97, which is significantly different than what we would expect by chance (p=0.02, 1-sample test of a proportion)
+
+
+
+
+```
+
